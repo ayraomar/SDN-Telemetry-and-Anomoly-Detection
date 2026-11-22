@@ -5,6 +5,7 @@ from os_ken.controller.handler import set_ev_cls
 from os_ken.ofproto import ofproto_v1_3
 from os_ken.lib import hub
 from os_ken.lib.packet import packet, ethernet, ether_types
+from telemetry import Telemetry
 
 
 class SDNMonitoringController(app_manager.OSKenApp):
@@ -15,6 +16,7 @@ class SDNMonitoringController(app_manager.OSKenApp):
         self.mac_to_port = {}
         self.datapaths = {}
         self.poll_interval = 1.0
+        self.telemetry = Telemetry(self)
         self.monitor_thread = hub.spawn(self._monitor)
 
     @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
@@ -46,7 +48,15 @@ class SDNMonitoringController(app_manager.OSKenApp):
 
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
-        pass
+        self.telemetry.on_port_stats(ev.msg.datapath.id, ev.msg.body)
+
+    def block_port(self, dpid, port, timeout=60):
+        dp = self.datapaths[dpid]
+        parser = dp.ofproto_parser
+        mod = parser.OFPFlowMod(datapath=dp, priority=100,
+                                match=parser.OFPMatch(in_port=port),
+                                instructions=[], hard_timeout=timeout)
+        dp.send_msg(mod)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):

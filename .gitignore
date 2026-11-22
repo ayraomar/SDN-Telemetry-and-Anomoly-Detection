@@ -1,2 +1,5 @@
-ryu-env/
+*.log
+*.pyc
 __pycache__/
+ryu-env/
+prom-data/
